@@ -1,0 +1,134 @@
+name: Android APK
+
+# Every build gets a semantic version from the conventional-commit history
+# (glueckkanja/action-semantic-version):
+#   main             -> X.Y.Z               (stable GitHub release)
+#   PRs / branches   -> X.Y.Z-internal.N    (GitHub pre-release)
+# The same version is stamped into the APK (versionName), the iOS project and the app itself.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      IS_MAIN: ${{ github.ref == 'refs/heads/main' }}
+      # Fork PRs get a read-only token: build them, but don't publish a release.
+      CAN_RELEASE: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      HAS_PUSH: ${{ secrets.GOOGLE_SERVICES_JSON != '' && (secrets.PUSH_GATEWAY_URL != '' || vars.PUSH_GATEWAY_URL != '') }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Compute version
+        id: version
+        uses: glueckkanja/action-semantic-version@35b934d4dcec52abc5a3f49d9e60a51df9357730 # v4.0.1
+        with:
+          github_token: ${{ github.token }}
+          suppress_tag: "true"
+          is_prerelease: ${{ env.IS_MAIN != 'true' }}
+          prerelease_name: internal
+
+      - name: Set version
+        run: |
+          echo "ABEA_VERSION_NAME=${{ steps.version.outputs.version }}" >> "$GITHUB_ENV"
+          echo "ABEA_VERSION_CODE=${{ github.run_number }}" >> "$GITHUB_ENV"
+          echo "### 📦 ABEA ${{ steps.version.outputs.version }} (build ${{ github.run_number }})" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      # The GitHub-hosted Ubuntu image ships the Android SDK ($ANDROID_HOME);
+      # Gradle installs any missing platform/build-tools once licenses are accepted.
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Stamp mobile version
+        working-directory: mobile
+        run: npm run version:set
+
+      # Optional remote push: needs a Firebase config and a Matrix push gateway (Sygnal).
+      - name: Configure push notifications
+        if: env.HAS_PUSH == 'true'
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          PUSH_GATEWAY_URL: ${{ secrets.PUSH_GATEWAY_URL || vars.PUSH_GATEWAY_URL }}
+        run: |
+          printf '%s' "$GOOGLE_SERVICES_JSON" > mobile/android/app/google-services.json
+          echo "VITE_PUSH_GATEWAY=$PUSH_GATEWAY_URL" >> "$GITHUB_ENV"
+
+      - name: Build web assets and sync Capacitor
+        working-directory: mobile
+        run: |
+          npm run build
+          npx cap sync android
+
+      - name: Build debug APK
+        working-directory: mobile/android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Decode release keystore
+        if: env.HAS_KEYSTORE == 'true'
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      - name: Build signed release APK
+        if: env.HAS_KEYSTORE == 'true'
+        working-directory: mobile/android
+        env:
+          ABEA_KEYSTORE_FILE: ${{ runner.temp }}/release.jks
+          ABEA_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ABEA_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ABEA_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Collect APKs
+        run: |
+          mkdir -p "$RUNNER_TEMP/apk"
+          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/apk/ABEA-${ABEA_VERSION_NAME}-debug.apk"
+          if [ -f mobile/android/app/build/outputs/apk/release/app-release.apk ]; then
+            cp mobile/android/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/apk/ABEA-${ABEA_VERSION_NAME}.apk"
+          fi
+          ls -la "$RUNNER_TEMP/apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ABEA-android-${{ env.ABEA_VERSION_NAME }}
+          path: ${{ runner.temp }}/apk/*.apk
+          if-no-files-found: error
+
+      # Tags the commit (vX.Y.Z / vX.Y.Z-internal.N) and publishes a release with the APKs attached.
+      - name: Publish release
+        if: env.CAN_RELEASE == 'true'
+        uses: glueckkanja/action-semantic-version@35b934d4dcec52abc5a3f49d9e60a51df9357730 # v4.0.1
+        with:
+          github_token: ${{ github.token }}
+          is_prerelease: ${{ env.IS_MAIN != 'true' }}
+          prerelease_name: internal
+          asset_path: ${{ runner.temp }}/apk

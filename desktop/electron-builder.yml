@@ -1,0 +1,36 @@
+appId: app.abea.desktop
+productName: ABEA
+executableName: abea
+copyright: Copyright © ABEA
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**
+  - electron/**
+  - build/icon.png
+  - package.json
+asar: true
+mac:
+  category: public.app-category.social-networking
+  icon: build/icon.icns
+  target:
+    - target: dmg
+      arch: [universal]
+  hardenedRuntime: true
+dmg:
+  title: ABEA
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: ABEA
+linux:
+  icon: build/icon.png
+  category: Network
+  target: [AppImage]

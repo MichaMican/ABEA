@@ -1,0 +1,105 @@
+:root {
+  --font: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+
+  --accent-1: #7b61ff;
+  --accent-2: #4f8cff;
+  --accent: #6a6dff;
+  --accent-strong: #5a52f0;
+  --accent-gradient: linear-gradient(135deg, var(--accent-1) 0%, var(--accent-2) 100%);
+  --accent-on: #ffffff;
+
+  --danger: #ef4565;
+  --success: #1fb57a;
+  --warning: #f2a33a;
+
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --bubble-radius: 20px;
+  --bubble-tail: 6px;
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur: 180ms;
+
+  --rail-w: 76px;
+  --list-w: 360px;
+  --header-h: 68px;
+
+  --safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+  --safe-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+}
+
+:root,
+html[data-theme="light"] {
+  --bg: #f4f5fa;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f6f7fb;
+  --surface-3: #eceef5;
+  --surface-hover: #f0f1f7;
+  --surface-active: #e9e8ff;
+  --rail-bg: #ffffff;
+  --border: #e6e8f0;
+  --border-strong: #d6d9e4;
+  --text: #141726;
+  --text-2: #4b5168;
+  --text-3: #8a90a6;
+  --text-on-accent: #ffffff;
+  --accent-soft: rgba(106, 109, 255, 0.11);
+  --accent-soft-2: rgba(106, 109, 255, 0.2);
+  --accent-text: #5a52f0;
+  --danger-soft: rgba(239, 69, 101, 0.1);
+  --success-soft: rgba(31, 181, 122, 0.12);
+  --bubble-in: #ffffff;
+  --bubble-in-text: #141726;
+  --bubble-out-text: #ffffff;
+  --chat-bg: #eef0f7;
+  --chat-pattern: rgba(106, 109, 255, 0.05);
+  --shadow-sm: 0 1px 2px rgba(20, 23, 38, 0.06);
+  --shadow: 0 4px 16px rgba(20, 23, 38, 0.08), 0 1px 3px rgba(20, 23, 38, 0.05);
+  --shadow-lg: 0 24px 60px rgba(20, 23, 38, 0.18), 0 6px 18px rgba(20, 23, 38, 0.08);
+  --shadow-bubble: 0 1px 1.5px rgba(20, 23, 38, 0.08);
+  --scrim: rgba(14, 16, 28, 0.45);
+  --glass: rgba(255, 255, 255, 0.78);
+  --skeleton: #e6e8f0;
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  --bg: #0b0d14;
+  --bg-elevated: #151927;
+  --surface: #12151f;
+  --surface-2: #171b27;
+  --surface-3: #1f2433;
+  --surface-hover: #1a1f2c;
+  --surface-active: #23244a;
+  --rail-bg: #0e1119;
+  --border: #222839;
+  --border-strong: #2e3548;
+  --text: #eef0f8;
+  --text-2: #b3b9cc;
+  --text-3: #767e96;
+  --accent-soft: rgba(123, 110, 255, 0.16);
+  --accent-soft-2: rgba(123, 110, 255, 0.28);
+  --accent-text: #a49bff;
+  --danger-soft: rgba(239, 69, 101, 0.16);
+  --success-soft: rgba(31, 181, 122, 0.16);
+  --bubble-in: #1c2130;
+  --bubble-in-text: #eef0f8;
+  --chat-bg: #0d1018;
+  --chat-pattern: rgba(123, 110, 255, 0.05);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow: 0 6px 20px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 24px 70px rgba(0, 0, 0, 0.6), 0 6px 18px rgba(0, 0, 0, 0.35);
+  --shadow-bubble: 0 1px 1.5px rgba(0, 0, 0, 0.3);
+  --scrim: rgba(3, 4, 9, 0.66);
+  --glass: rgba(18, 21, 31, 0.78);
+  --skeleton: #1f2433;
+  color-scheme: dark;
+}
