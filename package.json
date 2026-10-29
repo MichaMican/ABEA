@@ -1,0 +1,25 @@
+{
+  "name": "abea",
+  "private": true,
+  "version": "0.1.0",
+  "description": "ABEA – a beautiful Matrix messenger for web, desktop and mobile",
+  "workspaces": [
+    "shared",
+    "web",
+    "desktop",
+    "mobile"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev -w @abea/web",
+    "dev:desktop": "npm run dev -w @abea/desktop",
+    "dev:mobile": "npm run dev -w @abea/mobile",
+    "build:web": "npm run build -w @abea/web",
+    "build:desktop": "npm run build -w @abea/desktop",
+    "build:mobile": "npm run build -w @abea/mobile",
+    "build": "npm run build:web && npm run build:desktop && npm run build:mobile",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6"
+  }
+}
