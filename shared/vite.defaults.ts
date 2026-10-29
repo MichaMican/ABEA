@@ -7,7 +7,8 @@ const rootPkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.u
 export function abeaViteDefaults(): UserConfig {
   return {
     define: {
-      __ABEA_VERSION__: JSON.stringify(rootPkg.version),
+      // CI stamps the semantic release version (e.g. 1.2.0 or 1.2.0-internal.3).
+      __ABEA_VERSION__: JSON.stringify(process.env.ABEA_VERSION_NAME || rootPkg.version),
     },
     optimizeDeps: {
       // The Rust crypto WASM bundle loads its .wasm via import.meta.url; pre-bundling breaks that.

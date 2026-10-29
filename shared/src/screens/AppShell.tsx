@@ -17,8 +17,9 @@ import { Welcome } from "./Welcome";
 import { classifyEvent, messagePreview, senderName } from "../matrix/events";
 import { getDmPartner } from "../matrix/rooms";
 import { EmptyState } from "../components/ui";
+import { notificationsEnabled, syncPusher, useNotificationsEnabled } from "../matrix/notifications";
 
-export const NOTIFICATIONS_KEY = "abea.notifications";
+export { NOTIFICATIONS_KEY } from "../matrix/notifications";
 
 export function useIsCompact(): boolean {
   const platform = usePlatform();
@@ -225,6 +226,25 @@ function useNotifications(route: Route) {
   const routeRef = useRef(route);
   routeRef.current = route;
   const unread = useUnreadTotal();
+  const enabled = useNotificationsEnabled();
+  const isForeground = () => (platform.isForeground ? platform.isForeground() : document.hasFocus() && !document.hidden);
+
+  // Register / remove the homeserver pusher so notifications also arrive while the app is closed.
+  useEffect(() => {
+    if (!platform.registerPush && !enabled) return;
+    syncPusher(client, platform, enabled).catch((e) => console.warn("Push registration failed", e));
+  }, [client, platform, enabled]);
+
+  // Opening a room dismisses its notifications.
+  useEffect(() => {
+    const roomId = route.roomId;
+    if (!roomId || !platform.clearNotifications) return;
+    const clear = () => isForeground() && platform.clearNotifications!(roomId);
+    clear();
+    document.addEventListener("visibilitychange", clear);
+    return () => document.removeEventListener("visibilitychange", clear);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.roomId, platform]);
 
   useEffect(() => {
     document.title = unread > 0 ? `(${unread}) ABEA` : "ABEA";
@@ -243,15 +263,16 @@ function useNotifications(route: Route) {
       if (client.getSyncState() !== SyncState.Syncing) return;
       if (ev.getSender() === client.getUserId()) return;
       if (Date.now() - ev.getTs() > 60_000) return;
-      if (localStorage.getItem(NOTIFICATIONS_KEY) === "0") return;
-      const viewing = routeRef.current.roomId === room.roomId && document.hasFocus() && !document.hidden;
+      if (!notificationsEnabled()) return;
+      const viewing = routeRef.current.roomId === room.roomId && isForeground();
       if (viewing) return;
       const show = () => {
         if (classifyEvent(ev) !== "message") return;
         const actions = client.getPushActionsForEvent(ev);
         if (actions && !actions.notify) return;
-        const isDm = getDmPartner(client, room) !== null;
-        const roomName = getRoomName(client, room, getDmPartner(client, room));
+        const partner = getDmPartner(client, room);
+        const isDm = partner !== null;
+        const roomName = getRoomName(client, room, partner);
         const title = isDm ? roomName : `${senderName(ev, room)} · ${roomName}`;
         const body = messagePreview(ev);
         const open = () => {
@@ -259,7 +280,7 @@ function useNotifications(route: Route) {
           navigate({ section: "chats", roomId: room.roomId });
         };
         if (platform.notify) {
-          platform.notify(title, body, open);
+          platform.notify(title, body, open, { roomId: room.roomId, roomName, isDirect: isDm });
         } else if ("Notification" in window && Notification.permission === "granted") {
           const n = new Notification(title, { body, tag: room.roomId });
           n.onclick = open;

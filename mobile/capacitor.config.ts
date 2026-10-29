@@ -18,6 +18,10 @@ const config: CapacitorConfig = {
       resize: "native" as KeyboardResize,
       resizeOnFullScreen: true,
     },
+    PushNotifications: {
+      // In the foreground, new messages arrive via /sync and are handled by the app itself.
+      presentationOptions: ["badge"],
+    },
     LocalNotifications: {
       smallIcon: "ic_stat_abea",
       iconColor: "#6a6dff",

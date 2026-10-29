@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { Capacitor, SystemBars, SystemBarsStyle } from "@capacitor/core";
 import { App as CapApp } from "@capacitor/app";
 import { Keyboard, KeyboardStyle } from "@capacitor/keyboard";
-import { LocalNotifications } from "@capacitor/local-notifications";
+import { setUpNotifications } from "./notifications";
 import { App, type PlatformAdapter } from "@abea/shared";
 import "@abea/shared/styles.css";
 
@@ -28,34 +28,6 @@ if (native) {
   void Keyboard.addListener("keyboardDidHide", () => document.documentElement.classList.remove("keyboard-open"));
 }
 
-// ---- Local notifications ---------------------------------------------------------------------
-
-let notificationId = 1;
-const clickHandlers = new Map<number, () => void>();
-let permission: "unknown" | "granted" | "denied" = "unknown";
-
-async function ensureNotificationPermission(): Promise<boolean> {
-  if (permission !== "unknown") return permission === "granted";
-  try {
-    let status = await LocalNotifications.checkPermissions();
-    if (status.display === "prompt" || status.display === "prompt-with-rationale") {
-      status = await LocalNotifications.requestPermissions();
-    }
-    permission = status.display === "granted" ? "granted" : "denied";
-  } catch {
-    permission = "denied";
-  }
-  return permission === "granted";
-}
-
-if (native) {
-  void LocalNotifications.addListener("localNotificationActionPerformed", ({ notification }) => {
-    const handler = clickHandlers.get(notification.id);
-    clickHandlers.delete(notification.id);
-    handler?.();
-  });
-}
-
 // ---- Platform adapter ------------------------------------------------------------------------
 
 const platform: PlatformAdapter = {
@@ -69,17 +41,7 @@ const platform: PlatformAdapter = {
     void SystemBars.setStyle({ style: theme === "dark" ? SystemBarsStyle.Dark : SystemBarsStyle.Light }).catch(() => {});
     if (os === "ios") void Keyboard.setStyle({ style: theme === "dark" ? KeyboardStyle.Dark : KeyboardStyle.Light }).catch(() => {});
   },
-  notify: native
-    ? (title, body, onClick) => {
-        void ensureNotificationPermission().then((granted) => {
-          if (!granted) return;
-          const id = notificationId++;
-          clickHandlers.set(id, onClick);
-          if (clickHandlers.size > 50) clickHandlers.delete(clickHandlers.keys().next().value!);
-          void LocalNotifications.schedule({ notifications: [{ id, title, body }] });
-        });
-      }
-    : undefined,
+  ...setUpNotifications(),
 };
 
 createRoot(document.getElementById("root")!).render(
