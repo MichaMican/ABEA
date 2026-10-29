@@ -59,6 +59,26 @@ npm run run:android -w @abea/mobile   # build and run on a connected device or e
 
 The mobile app supports edge-to-edge safe areas, status-bar styling that follows the theme, the Android hardware back button, local notifications for new messages, and keyboard-aware layouts.
 
+#### Android APK from GitHub Actions
+
+The [`Android APK`](.github/workflows/android.yml) workflow builds an installable APK. It runs on every change to `mobile/` or `shared/`, on `v*` tags, and on demand from the **Actions → Android APK → Run workflow** button.
+
+1. Open the workflow run and download the **ABEA-android-…** artifact (a zip containing the APK).
+2. Copy `ABEA-<version>-debug.apk` to your phone, open it, and allow "Install unknown apps" when Android asks.
+
+Pushing a tag such as `v0.1.0` also attaches the APKs to a GitHub release.
+
+To get a signed release APK too (needed for updates without uninstalling), add these repository secrets:
+
+| Secret | Value |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | `base64 -w0 release.jks` |
+| `ANDROID_KEYSTORE_PASSWORD` | keystore password |
+| `ANDROID_KEY_ALIAS` | key alias |
+| `ANDROID_KEY_PASSWORD` | key password |
+
+Create a keystore once with `keytool -genkeypair -v -keystore release.jks -alias abea -keyalg RSA -keysize 4096 -validity 10000`.
+
 > Mobile WebViews only allow **https** homeservers. On a device, `http://localhost` points at the phone itself.
 
 ### Icons
