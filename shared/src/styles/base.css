@@ -237,3 +237,7 @@ code {
     transition-duration: 0.01ms !important;
   }
 }
+
+.text-warning {
+  color: var(--warning);
+}

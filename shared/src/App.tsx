@@ -16,6 +16,7 @@ import {
 import { LoginScreen, SSO_PENDING_KEY } from "./screens/LoginScreen";
 import { AppShell } from "./screens/AppShell";
 import { Splash } from "./screens/Splash";
+import { SecurityProvider } from "./components/Security";
 
 export function App({ platform }: { platform?: PlatformAdapter }) {
   const adapter = platform ?? defaultPlatform;
@@ -128,7 +129,9 @@ function SessionGate() {
   }
   return (
     <MatrixContext.Provider value={{ client: state.client, cryptoEnabled: state.cryptoEnabled, logout }}>
-      <AppShell />
+      <SecurityProvider>
+        <AppShell />
+      </SecurityProvider>
     </MatrixContext.Provider>
   );
 }

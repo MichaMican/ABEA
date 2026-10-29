@@ -24,6 +24,8 @@ export function classifyEvent(ev: MatrixEvent): EventKind {
     const rel = getRelType(ev);
     if (rel === "m.replace" || rel === "m.annotation") return "hidden";
     if (ev.isRedacted()) return "message";
+    // In-room verification requests are handled by the verification dialog.
+    if (ev.getContent().msgtype === "m.key.verification.request") return "hidden";
     if (type === EventType.RoomMessage && !ev.getContent().msgtype && !ev.getContent().body) return "hidden";
     return "message";
   }

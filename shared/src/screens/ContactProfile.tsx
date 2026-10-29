@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { KnownMembership } from "matrix-js-sdk";
-import { ArrowLeft, Ban, Copy, MessageCircle, ShieldCheck, Star, StarOff, Users } from "lucide-react";
+import { ArrowLeft, Ban, Copy, MessageCircle, ShieldAlert, ShieldCheck, ShieldQuestion, Star, StarOff, Users } from "lucide-react";
 import { useMatrix } from "../matrix/MatrixContext";
 import { useContacts, useIgnoredUsers, useProfile, useRoomSummaries } from "../matrix/hooks";
 import { addContact, isSavedContact, removeContact } from "../matrix/contacts";
@@ -8,11 +8,13 @@ import { startDirectChat } from "../matrix/rooms";
 import { useMediaUrl } from "../matrix/media";
 import { navigate } from "../router";
 import { Avatar } from "../components/Avatar";
-import { IconButton, Spinner } from "../components/ui";
+import { Button, IconButton, Spinner } from "../components/ui";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Lightbox, type LightboxImage } from "../components/Lightbox";
 import { useToast } from "../components/Toast";
 import { useIsCompact } from "./AppShell";
+import { useSecurity } from "../components/Security";
+import { notifySecurityChanged, useUserVerification } from "../matrix/security";
 
 export function ContactProfile({ userId }: { userId: string }) {
   const { client, cryptoEnabled } = useMatrix();
@@ -22,7 +24,7 @@ export function ContactProfile({ userId }: { userId: string }) {
   const contacts = useContacts();
   const ignored = useIgnoredUsers();
   const rooms = useRoomSummaries();
-  const [busy, setBusy] = useState<"chat" | "contact" | null>(null);
+  const [busy, setBusy] = useState<"chat" | "contact" | "verify" | null>(null);
   const [confirmBlock, setConfirmBlock] = useState(false);
   const [lightbox, setLightbox] = useState<LightboxImage | null>(null);
   const backdrop = useMediaUrl(profile?.avatarMxc, { width: 96, height: 96 });
@@ -35,6 +37,47 @@ export function ContactProfile({ userId }: { userId: string }) {
   const name = profile?.displayName ?? userId;
   const user = client.getUser(userId);
   const online = user?.presence === "online";
+
+  const security = useSecurity();
+  const verification = useUserVerification(client, cryptoEnabled ? userId : null);
+  const [hasKeys, setHasKeys] = useState<boolean | null>(null);
+  useEffect(() => {
+    const crypto = client.getCrypto();
+    if (!crypto || isMe) return;
+    let alive = true;
+    crypto
+      .userHasCrossSigningKeys(userId, true)
+      .then((v) => alive && setHasKeys(v))
+      .catch(() => alive && setHasKeys(false));
+    return () => {
+      alive = false;
+    };
+  }, [client, userId, isMe, verification]);
+  const verified = !!verification?.isCrossSigningVerified();
+  const identityChanged = !!verification?.wasCrossSigningVerified() && !verified;
+
+  const verify = async () => {
+    const crypto = client.getCrypto();
+    if (!crypto) return;
+    setBusy("verify");
+    try {
+      const roomId = await startDirectChat(client, userId, cryptoEnabled);
+      security.showVerification(crypto.requestVerificationDM(userId, roomId));
+    } catch (e) {
+      toast.error(e, "Could not start verification");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const acceptIdentity = async () => {
+    try {
+      await client.getCrypto()?.withdrawVerificationRequirement(userId);
+      notifySecurityChanged();
+    } catch (e) {
+      toast.error(e);
+    }
+  };
 
   const sharedGroups = useMemo(
     () =>
@@ -107,9 +150,19 @@ export function ContactProfile({ userId }: { userId: string }) {
           {user?.presence && user.presence !== "offline" && (
             <span className={`pill ${online ? "pill--success" : ""}`}>{online ? "Online" : user.presence === "unavailable" ? "Away" : user.presence}</span>
           )}
+          {!isMe && verified && (
+            <span className="pill trust--verified">
+              <ShieldCheck size={13} /> Verified
+            </span>
+          )}
+          {!isMe && identityChanged && (
+            <span className="pill trust--warning">
+              <ShieldAlert size={13} /> Identity changed
+            </span>
+          )}
           {isContact && !isMe && (
             <span className="pill pill--accent">
-              <ShieldCheck size={13} /> {saved ? "Saved contact" : "Direct chat partner"}
+              <Users size={13} /> {saved ? "Saved contact" : "Direct chat partner"}
             </span>
           )}
 
@@ -130,6 +183,42 @@ export function ContactProfile({ userId }: { userId: string }) {
             </div>
           )}
         </div>
+
+        {!isMe && cryptoEnabled && verification && (
+          <section className="info-card profile-section">
+            <div className="profile-trust">
+              {verified ? (
+                <ShieldCheck size={26} className="text-success" />
+              ) : identityChanged ? (
+                <ShieldAlert size={26} className="text-warning" />
+              ) : (
+                <ShieldQuestion size={26} className="muted" />
+              )}
+              <div className="profile-trust__text">
+                <strong>{verified ? "Verified" : identityChanged ? "Identity changed" : "Not verified"}</strong>
+                <small>
+                  {verified
+                    ? `You've confirmed ${name}'s identity. Messages are end-to-end encrypted.`
+                    : identityChanged
+                      ? `${name}'s identity was reset. This can happen if they reinstalled — verify again to be sure.`
+                      : hasKeys === false
+                        ? `${name} hasn't set up encryption keys yet, so they can't be verified.`
+                        : `Compare emoji with ${name} to make sure you're talking to the right person.`}
+                </small>
+              </div>
+              {!verified && hasKeys !== false && (
+                <Button variant={identityChanged ? "secondary" : "primary"} size="sm" onClick={verify} loading={busy === "verify"}>
+                  Verify
+                </Button>
+              )}
+            </div>
+            {identityChanged && (
+              <button className="link-btn" style={{ marginTop: 10 }} onClick={acceptIdentity}>
+                Accept new identity without verifying
+              </button>
+            )}
+          </section>
+        )}
 
         {sharedGroups.length > 0 && (
           <section className="info-card info-card--flush profile-section">

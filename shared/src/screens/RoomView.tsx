@@ -1,7 +1,8 @@
 import { useEffect, useState, type DragEvent } from "react";
 import { KnownMembership, type MatrixEvent, type Room } from "matrix-js-sdk";
-import { ArrowLeft, Check, Info, Lock, MessageCircleOff, Upload, X } from "lucide-react";
+import { ArrowLeft, Check, Info, Lock, MessageCircleOff, ShieldCheck, Upload, X } from "lucide-react";
 import { useMatrixClient } from "../matrix/MatrixContext";
+import { useUserVerification } from "../matrix/security";
 import { useRoom, useRoomSummary, useSyncState, useTypingMembers, type RoomSummary } from "../matrix/hooks";
 import { acceptInvite, leaveRoom } from "../matrix/rooms";
 import { navigate, useRoute } from "../router";
@@ -146,6 +147,8 @@ function RoomHeader({ room, summary }: { room: Room; summary: RoomSummary }) {
   const compact = useIsCompact();
   const typing = useTypingMembers(room);
   const route = useRoute();
+  const partnerTrust = useUserVerification(useMatrixClient(), summary.isDirect && summary.encrypted ? summary.partnerId : null);
+  const partnerVerified = !!partnerTrust?.isCrossSigningVerified();
   const infoOpen = route.panel === "info";
   const subtitle =
     typing.length > 0
@@ -169,7 +172,12 @@ function RoomHeader({ room, summary }: { room: Room; summary: RoomSummary }) {
         <span className="room-header__text">
           <span className="room-header__title">
             {summary.name}
-            {summary.encrypted && <Lock size={13} className="room-header__lock" />}
+            {summary.encrypted &&
+              (partnerVerified ? (
+                <ShieldCheck size={15} className="room-header__shield" aria-label="Verified" />
+              ) : (
+                <Lock size={13} className="room-header__lock" />
+              ))}
           </span>
           <span className={`room-header__subtitle ${typing.length ? "is-typing" : ""}`}>{subtitle}</span>
         </span>

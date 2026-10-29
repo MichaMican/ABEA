@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Info, LogOut, Monitor, Moon, ShieldCheck, Sun, UserX } from "lucide-react";
+import { useState } from "react";
+import { Info, LogOut, Monitor, Moon, Sun, UserX } from "lucide-react";
 import { useMatrix } from "../matrix/MatrixContext";
 import { invalidateProfile, useIgnoredUsers, useProfile } from "../matrix/hooks";
 import { uploadAvatar } from "../matrix/media";
@@ -12,7 +12,8 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Lightbox, type LightboxImage } from "../components/Lightbox";
 import { useToast } from "../components/Toast";
 import { EditableText } from "./RoomInfo";
-import { NOTIFICATIONS_KEY } from "./AppShell";
+import { SecuritySettings } from "../components/Security";
+import { setNotificationsEnabled, useNotificationPermission, useNotificationsEnabled } from "../matrix/notifications";
 
 const THEMES: { id: ThemePreference; label: string; icon: typeof Sun }[] = [
   { id: "system", label: "System", icon: Monitor },
@@ -31,24 +32,23 @@ export function SettingsView() {
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [lightbox, setLightbox] = useState<LightboxImage | null>(null);
-  const [notifications, setNotifications] = useState(() => localStorage.getItem(NOTIFICATIONS_KEY) !== "0");
-  const [permission, setPermission] = useState(() => ("Notification" in window ? Notification.permission : "denied"));
-  const [deviceKey, setDeviceKey] = useState<string | null>(null);
-
-  useEffect(() => {
-    const crypto = client.getCrypto();
-    crypto
-      ?.getOwnDeviceKeys()
-      .then((keys) => setDeviceKey(keys.ed25519))
-      .catch(() => undefined);
-  }, [client]);
+  const notifications = useNotificationsEnabled();
+  const { permission, request: requestPermission } = useNotificationPermission(platform);
+  const blocked = permission === "denied";
 
   const toggleNotifications = async (on: boolean) => {
-    setNotifications(on);
-    localStorage.setItem(NOTIFICATIONS_KEY, on ? "1" : "0");
-    if (on && !platform.notify && "Notification" in window && Notification.permission === "default") {
-      setPermission(await Notification.requestPermission());
+    if (on && permission !== "granted") {
+      const result = await requestPermission();
+      if (result !== "granted") {
+        toast.show(
+          platform.kind === "mobile"
+            ? "Allow notifications for ABEA in your system settings."
+            : "Notifications are blocked by your browser settings.",
+        );
+        return;
+      }
     }
+    setNotificationsEnabled(on);
   };
 
   const name = profile?.displayName ?? me;
@@ -122,49 +122,37 @@ export function SettingsView() {
           </div>
         </section>
 
-        {platform.kind !== "mobile" && (
-          <>
-            <h2 className="settings__section">Notifications</h2>
-            <section className="settings-card">
-              <Switch
-                checked={notifications && (!!platform.notify || permission === "granted")}
-                onChange={toggleNotifications}
-                label="Message notifications"
-                description={
-                  !platform.notify && permission === "denied"
-                    ? "Notifications are blocked by your browser settings."
-                    : "Show a notification for new messages when ABEA is in the background."
-                }
-                disabled={!platform.notify && permission === "denied"}
-              />
-            </section>
-          </>
-        )}
+        <h2 className="settings__section">Notifications</h2>
+        <section className="settings-card">
+          <Switch
+            checked={notifications && permission === "granted"}
+            onChange={toggleNotifications}
+            label="Message notifications"
+            description={
+              blocked
+                ? platform.kind === "mobile"
+                  ? "Notifications are turned off for ABEA in your system settings."
+                  : "Notifications are blocked by your browser settings."
+                : platform.kind === "mobile"
+                  ? platform.registerPush
+                    ? "Get notified about new messages, even when ABEA is closed."
+                    : "Get notified about new messages while ABEA is running in the background."
+                  : "Show a notification for new messages when ABEA is in the background."
+            }
+            disabled={blocked || permission === null}
+          />
+          {blocked && platform.notificationPermission?.openSettings && (
+            <Button size="sm" variant="secondary" style={{ marginTop: 12 }} onClick={platform.notificationPermission.openSettings}>
+              Open system settings
+            </Button>
+          )}
+        </section>
 
-        <h2 className="settings__section">Privacy & security</h2>
+        <h2 className="settings__section">Security</h2>
+        <SecuritySettings />
+
+        <h2 className="settings__section">Privacy</h2>
         <section className="settings-card settings-list">
-          <div className="settings-row">
-            <ShieldCheck size={20} className={cryptoEnabled ? "text-success" : "muted"} />
-            <div className="settings-row__text">
-              <span>End-to-end encryption</span>
-              <small>{cryptoEnabled ? "Active on this device" : "Not available on this device"}</small>
-            </div>
-          </div>
-          <div className="settings-row">
-            <Info size={20} className="muted" />
-            <div className="settings-row__text">
-              <span>Session</span>
-              <small>
-                Device ID <code>{client.getDeviceId()}</code>
-                {deviceKey && (
-                  <>
-                    <br />
-                    Key <code>{deviceKey.replace(/(.{4})/g, "$1 ").trim()}</code>
-                  </>
-                )}
-              </small>
-            </div>
-          </div>
           <div className="settings-row settings-row--top">
             <UserX size={20} className="muted" />
             <div className="settings-row__text">

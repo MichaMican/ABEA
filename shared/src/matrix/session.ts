@@ -5,6 +5,7 @@ import {
   type MatrixClient,
   PendingEventOrdering,
 } from "matrix-js-sdk";
+import { clearSecretKeyCache, makeCryptoCallbacks } from "./security";
 
 export interface StoredSession {
   homeserverUrl: string;
@@ -184,16 +185,19 @@ export interface StartedClient {
 }
 
 export async function createStartedClient(session: StoredSession): Promise<StartedClient> {
+  let current: MatrixClient | null = null;
+  const cryptoCallbacks = makeCryptoCallbacks(() => current);
   const makeClient = (store?: IndexedDBStore) =>
-    createClient({
+    (current = createClient({
       baseUrl: session.homeserverUrl,
       accessToken: session.accessToken,
       userId: session.userId,
       deviceId: session.deviceId,
       timelineSupport: true,
       useAuthorizationHeader: true,
+      cryptoCallbacks,
       ...(store ? { store } : {}),
-    });
+    }));
 
   let client: MatrixClient;
   if (typeof indexedDB !== "undefined") {
@@ -219,6 +223,7 @@ export async function createStartedClient(session: StoredSession): Promise<Start
   }
 
   await client.startClient({ lazyLoadMembers: true, initialSyncLimit: 30, pendingEventOrdering: PendingEventOrdering.Detached });
+  if (import.meta.env?.DEV) (window as unknown as { abeaClient?: MatrixClient }).abeaClient = client;
   return { client, cryptoEnabled };
 }
 
@@ -231,6 +236,7 @@ export async function destroyClient(client: MatrixClient, { logout }: { logout: 
     }
   }
   client.stopClient();
+  clearSecretKeyCache();
   try {
     await client.clearStores({ cryptoDatabasePrefix: CRYPTO_PREFIX });
   } catch (e) {
