@@ -1,29 +1,23 @@
 name: Android APK
 
+# Every build gets a semantic version from the conventional-commit history
+# (glueckkanja/action-semantic-version):
+#   main             -> X.Y.Z               (stable GitHub release)
+#   PRs / branches   -> X.Y.Z-internal.N    (GitHub pre-release)
+# The same version is stamped into the APK (versionName), the iOS project and the app itself.
+
 on:
   workflow_dispatch:
   push:
     branches: [main]
-    tags: ["v*"]
-    paths:
-      - "mobile/**"
-      - "shared/**"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/android.yml"
   pull_request:
-    paths:
-      - "mobile/**"
-      - "shared/**"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/android.yml"
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: write
 
 concurrency:
-  group: android-${{ github.ref }}
+  group: android-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -32,11 +26,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      ABEA_VERSION_CODE: ${{ github.run_number }}
-      ABEA_VERSION_NAME: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('0.1.{0}', github.run_number) }}
+      IS_MAIN: ${{ github.ref == 'refs/heads/main' }}
+      # Fork PRs get a read-only token: build them, but don't publish a release.
+      CAN_RELEASE: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      HAS_PUSH: ${{ secrets.GOOGLE_SERVICES_JSON != '' && (secrets.PUSH_GATEWAY_URL != '' || vars.PUSH_GATEWAY_URL != '') }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Compute version
+        id: version
+        uses: glueckkanja/action-semantic-version@35b934d4dcec52abc5a3f49d9e60a51df9357730 # v4.0.1
+        with:
+          github_token: ${{ github.token }}
+          suppress_tag: "true"
+          is_prerelease: ${{ env.IS_MAIN != 'true' }}
+          prerelease_name: internal
+
+      - name: Set version
+        run: |
+          echo "ABEA_VERSION_NAME=${{ steps.version.outputs.version }}" >> "$GITHUB_ENV"
+          echo "ABEA_VERSION_CODE=${{ github.run_number }}" >> "$GITHUB_ENV"
+          echo "### 📦 ABEA ${{ steps.version.outputs.version }} (build ${{ github.run_number }})" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/setup-node@v5
         with:
@@ -56,6 +69,20 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Stamp mobile version
+        working-directory: mobile
+        run: npm run version:set
+
+      # Optional remote push: needs a Firebase config and a Matrix push gateway (Sygnal).
+      - name: Configure push notifications
+        if: env.HAS_PUSH == 'true'
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          PUSH_GATEWAY_URL: ${{ secrets.PUSH_GATEWAY_URL || vars.PUSH_GATEWAY_URL }}
+        run: |
+          printf '%s' "$GOOGLE_SERVICES_JSON" > mobile/android/app/google-services.json
+          echo "VITE_PUSH_GATEWAY=$PUSH_GATEWAY_URL" >> "$GITHUB_ENV"
 
       - name: Build web assets and sync Capacitor
         working-directory: mobile
@@ -83,23 +110,25 @@ jobs:
 
       - name: Collect APKs
         run: |
-          mkdir -p out
-          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk "out/ABEA-${ABEA_VERSION_NAME}-debug.apk"
+          mkdir -p "$RUNNER_TEMP/apk"
+          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/apk/ABEA-${ABEA_VERSION_NAME}-debug.apk"
           if [ -f mobile/android/app/build/outputs/apk/release/app-release.apk ]; then
-            cp mobile/android/app/build/outputs/apk/release/app-release.apk "out/ABEA-${ABEA_VERSION_NAME}.apk"
+            cp mobile/android/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/apk/ABEA-${ABEA_VERSION_NAME}.apk"
           fi
-          ls -la out
+          ls -la "$RUNNER_TEMP/apk"
 
       - uses: actions/upload-artifact@v4
         with:
           name: ABEA-android-${{ env.ABEA_VERSION_NAME }}
-          path: out/*.apk
+          path: ${{ runner.temp }}/apk/*.apk
           if-no-files-found: error
 
-      - name: Attach APKs to GitHub release
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --generate-notes
-          gh release upload "$GITHUB_REF_NAME" out/*.apk --clobber
+      # Tags the commit (vX.Y.Z / vX.Y.Z-internal.N) and publishes a release with the APKs attached.
+      - name: Publish release
+        if: env.CAN_RELEASE == 'true'
+        uses: glueckkanja/action-semantic-version@35b934d4dcec52abc5a3f49d9e60a51df9357730 # v4.0.1
+        with:
+          github_token: ${{ github.token }}
+          is_prerelease: ${{ env.IS_MAIN != 'true' }}
+          prerelease_name: internal
+          asset_path: ${{ runner.temp }}/apk
