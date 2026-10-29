@@ -117,7 +117,7 @@ jobs:
           fi
           ls -la "$RUNNER_TEMP/apk"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ABEA-android-${{ env.ABEA_VERSION_NAME }}
           path: ${{ runner.temp }}/apk/*.apk
