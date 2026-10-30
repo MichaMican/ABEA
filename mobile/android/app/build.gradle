@@ -34,9 +34,9 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
-        testOptions {
-            unitTests.includeAndroidResources = true
-        }
+    }
+    testOptions {
+        unitTests.includeAndroidResources = true
     }
 }
 
