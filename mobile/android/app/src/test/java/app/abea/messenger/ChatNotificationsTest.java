@@ -6,6 +6,7 @@ import static org.robolectric.Shadows.shadowOf;
 import android.Manifest;
 import android.app.Application;
 import android.app.Notification;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.os.Bundle;
@@ -88,6 +89,7 @@ public class ChatNotificationsTest {
         assertEquals(2, style.getMessages().size());
         assertEquals("Decrypted", style.getMessages().get(0).getText().toString());
         assertEquals("$two", notification.extras.getString(ChatNotifications.EVENT_ID));
+        assertNotEquals(0, notification.flags & Notification.FLAG_ONLY_ALERT_ONCE);
     }
 
     @Test
@@ -182,5 +184,14 @@ public class ChatNotificationsTest {
         ChatNotifications.configure(context, USER, false);
         show("$one", "Hello", true, 1);
         assertTrue(ChatNotifications.delivered(context).isEmpty());
+    }
+
+    @Test
+    public void upgradingFromGenericNotificationsClearsLegacyMessages() {
+        ChatNotifications.ensureChannel(context);
+        context.getSystemService(NotificationManager.class).notify(123, new NotificationCompat.Builder(
+            context, ChatNotifications.CHANNEL_ID).setSmallIcon(R.drawable.ic_stat_abea).setContentTitle("Old notification").build());
+        ChatNotifications.configure(context, null, false);
+        assertEquals(0, context.getSystemService(NotificationManager.class).getActiveNotifications().length);
     }
 }

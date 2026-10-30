@@ -95,6 +95,8 @@ export function Timeline({
   const typing = useTypingMembers(room);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const latestRef = useRef<HTMLDivElement>(null);
+  const [atLatest, setAtLatest] = useState(false);
   const markingRead = useRef<string | null>(null);
   const [showJump, setShowJump] = useState(false);
   const [menu, setMenu] = useState<{ ev: MatrixEvent; anchor: Anchor; picker?: boolean } | null>(null);
@@ -121,6 +123,16 @@ export function Timeline({
     observer.observe(target);
     return () => observer.disconnect();
   }, [paginate]);
+
+  useEffect(() => {
+    if (!scrollRef.current || !latestRef.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setAtLatest(entry.isIntersecting && entry.intersectionRatio >= 1),
+      { root: scrollRef.current, threshold: 1 },
+    );
+    observer.observe(latestRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   // Keep paginating while the content does not yet fill the viewport.
   useEffect(() => {
@@ -153,7 +165,7 @@ export function Timeline({
     };
   }, [platform]);
   useEffect(() => {
-    if (!focused || showJump) return;
+    if (!focused || !atLatest) return;
     const live = room.getLiveTimeline().getEvents();
     const target = [...live].reverse().find((e) => e.getId() && !e.getId()!.startsWith("~") && !e.isState());
     if (!target || room.hasUserReadEvent(me, target.getId()!) || markingRead.current === target.getId()) return;
@@ -164,7 +176,7 @@ export function Timeline({
       .finally(() => {
         if (markingRead.current === eventId) markingRead.current = null;
       });
-  }, [client, room, me, focused, showJump, version, toast]);
+  }, [client, room, me, focused, atLatest, version, toast]);
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -254,6 +266,7 @@ export function Timeline({
               />
             );
           })}
+          <div ref={latestRef} className="timeline__sentinel" />
           {typing.length > 0 && (
             <div className="typing-row">
               <div className="typing-bubble" aria-label="typing">

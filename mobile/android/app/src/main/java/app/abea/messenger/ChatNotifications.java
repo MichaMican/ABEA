@@ -89,7 +89,7 @@ final class ChatNotifications {
             if (old != null) messages.addAll(old.getMessages());
         }
         // A decrypted /sync event replaces the encrypted push placeholder, rather than duplicating it.
-        messages.removeIf(message -> eventId.equals(message.getExtras().getString(EVENT_ID)));
+        boolean replacing = messages.removeIf(message -> eventId.equals(message.getExtras().getString(EVENT_ID)));
         NotificationCompat.MessagingStyle.Message message = new NotificationCompat.MessagingStyle.Message(body, timestamp, sender);
         message.getExtras().putString(EVENT_ID, eventId);
         messages.add(message);
@@ -123,7 +123,7 @@ final class ChatNotifications {
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setShortcutId(shortcutId)
             .setLocusId(new LocusIdCompat(shortcutId))
-            .setOnlyAlertOnce(previous != null && eventId.equals(previous.extras.getString(EVENT_ID)))
+            .setOnlyAlertOnce(replacing)
             .setAutoCancel(false)
             .setContentIntent(PendingIntent.getActivity(
                 context, 0, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
@@ -187,8 +187,12 @@ final class ChatNotifications {
     }
 
     static void clearAll(Context context) {
-        for (StatusBarNotification notification : delivered(context)) {
-            NotificationManagerCompat.from(context).cancel(notification.getTag(), notification.getId());
+        for (StatusBarNotification notification : context.getSystemService(NotificationManager.class).getActiveNotifications()) {
+            Notification value = notification.getNotification();
+            if (value.extras.containsKey(ROOM_ID) ||
+                (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && CHANNEL_ID.equals(value.getChannelId()))) {
+                NotificationManagerCompat.from(context).cancel(notification.getTag(), notification.getId());
+            }
         }
     }
 
