@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { RoomEvent, SyncState, type MatrixEvent, type Room } from "matrix-js-sdk";
+import { ClientEvent, RoomEvent, SyncState, type MatrixEvent, type Room } from "matrix-js-sdk";
 import { MessageCircle, Settings as SettingsIcon, Users } from "lucide-react";
 import { useMatrixClient } from "../matrix/MatrixContext";
 import { navigate, navigateUp, useRoute, type Route, type Section } from "../router";
@@ -18,6 +18,8 @@ import { classifyEvent, messagePreview, senderName } from "../matrix/events";
 import { getDmPartner } from "../matrix/rooms";
 import { EmptyState } from "../components/ui";
 import { notificationsEnabled, syncPusher, useNotificationsEnabled } from "../matrix/notifications";
+import { notificationWasRead, performNotificationAction } from "../matrix/notificationActions";
+import { useToast } from "../components/Toast";
 
 export { NOTIFICATIONS_KEY } from "../matrix/notifications";
 
@@ -227,6 +229,7 @@ function useNotifications(route: Route) {
   routeRef.current = route;
   const unread = useUnreadTotal();
   const enabled = useNotificationsEnabled();
+  const toast = useToast();
   const isForeground = () => (platform.isForeground ? platform.isForeground() : document.hasFocus() && !document.hidden);
 
   // Register / remove the homeserver pusher so notifications also arrive while the app is closed.
@@ -235,16 +238,63 @@ function useNotifications(route: Route) {
     syncPusher(client, platform, enabled).catch((e) => console.warn("Push registration failed", e));
   }, [client, platform, enabled]);
 
-  // Opening a room dismisses its notifications.
   useEffect(() => {
-    const roomId = route.roomId;
-    if (!roomId || !platform.clearNotifications) return;
-    const clear = () => isForeground() && platform.clearNotifications!(roomId);
-    clear();
-    document.addEventListener("visibilitychange", clear);
-    return () => document.removeEventListener("visibilitychange", clear);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [route.roomId, platform]);
+    platform.setNotificationState?.({ userId: client.getUserId(), enabled }).catch((error) => toast.error(error));
+  }, [client, platform, enabled, toast]);
+
+  useEffect(() => platform.onNotificationAction?.(async (action) => {
+    try {
+      await performNotificationAction(client, action);
+    } catch (error) {
+      toast.error(error, "The notification action failed. Open the chat to try again.");
+      throw error;
+    }
+  }), [client, platform, toast]);
+
+  // An open chat is not necessarily read: the user may be scrolled into history.
+  useEffect(() => {
+    if (!platform.getDeliveredNotifications || !platform.clearNotifications) return;
+    let disposed = false;
+    let running = false;
+    let dirty = false;
+    const reconcile = async () => {
+      dirty = true;
+      if (running) return;
+      running = true;
+      try {
+        while (dirty && !disposed) {
+          dirty = false;
+          const notifications = await platform.getDeliveredNotifications!();
+          for (const { roomId, eventId } of notifications) {
+            if (disposed) break;
+            const room = client.getRoom(roomId);
+            if (room && notificationWasRead(room, client.getUserId()!, eventId)) {
+              await platform.clearNotifications!(roomId, eventId);
+            }
+          }
+        }
+      } catch (error) {
+        console.warn("Could not dismiss read notifications", error);
+      } finally {
+        running = false;
+      }
+    };
+    const update = () => void reconcile();
+    update();
+    client.on(RoomEvent.Receipt, update);
+    client.on(RoomEvent.AccountData, update);
+    client.on(ClientEvent.Sync, update);
+    window.addEventListener("abea:foreground", update);
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      disposed = true;
+      client.off(RoomEvent.Receipt, update);
+      client.off(RoomEvent.AccountData, update);
+      client.off(ClientEvent.Sync, update);
+      window.removeEventListener("abea:foreground", update);
+      document.removeEventListener("visibilitychange", update);
+    };
+  }, [client, platform]);
 
   useEffect(() => {
     document.title = unread > 0 ? `(${unread}) ABEA` : "ABEA";
@@ -267,6 +317,8 @@ function useNotifications(route: Route) {
       const viewing = routeRef.current.roomId === room.roomId && isForeground();
       if (viewing) return;
       const show = () => {
+        if (!notificationsEnabled() || room.hasUserReadEvent(client.getUserId()!, ev.getId()!)) return;
+        if (routeRef.current.roomId === room.roomId && isForeground()) return;
         if (classifyEvent(ev) !== "message") return;
         const actions = client.getPushActionsForEvent(ev);
         if (actions && !actions.notify) return;
@@ -280,7 +332,15 @@ function useNotifications(route: Route) {
           navigate({ section: "chats", roomId: room.roomId });
         };
         if (platform.notify) {
-          platform.notify(title, body, open, { roomId: room.roomId, roomName, isDirect: isDm });
+          platform.notify(title, body, open, {
+            roomId: room.roomId,
+            roomName,
+            isDirect: isDm,
+            eventId: ev.getId(),
+            senderId: ev.getSender(),
+            senderName: senderName(ev, room),
+            timestamp: ev.getTs(),
+          });
         } else if ("Notification" in window && Notification.permission === "granted") {
           const n = new Notification(title, { body, tag: room.roomId });
           n.onclick = open;

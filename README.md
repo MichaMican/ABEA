@@ -63,7 +63,11 @@ The mobile app supports edge-to-edge safe areas, status-bar styling that follows
 
 #### Notifications and push
 
-While the app runs (foreground or background), new messages arrive via `/sync` and show as local notifications, one per chat; opening the chat dismisses them. Turn them on or off under **Settings → Notifications**.
+While the app runs, new messages arrive via `/sync` and notify when you are not viewing that chat. Turn notifications on or off under **Settings → Notifications**. Notifications disappear after the messages are marked read, including when you read them on another device. Merely opening a chat while scrolled into older history does not dismiss unread messages.
+
+On **Android**, local messages and remote pushes both use conversation-style notifications (`MessagingStyle` with a per-chat conversation shortcut), showing sender names and recent messages. Expand a notification for **Mark as read** and **Reply**; Reply opens Android's inline keyboard. Read markers are sent to Matrix, and replies go through the normal Matrix SDK so encrypted chats remain encrypted. New messages arriving during a read action remain visible.
+
+If Android has killed the app's encrypted client, notification actions are saved on the device and explicitly show **Open ABEA to send your reply** / **Open ABEA to mark as read**. Opening ABEA resumes them; a failed action remains queued with an error status instead of reporting success. These queues are excluded from Android backup and cleared on account changes/sign-out. With the client still running in the background, actions are processed without opening the chat.
 
 To get notifications while the app is **closed**, ABEA registers a Matrix [HTTP pusher](https://spec.matrix.org/latest/client-server-api/#push-notifications) with your homeserver. This needs a push gateway such as [Sygnal](https://github.com/matrix-org/sygnal), configured with these app IDs:
 

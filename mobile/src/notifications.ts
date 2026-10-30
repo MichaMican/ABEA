@@ -3,6 +3,7 @@ import { App as CapApp } from "@capacitor/app";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { navigate, roomNotificationId, type NotificationPermissionState, type PlatformAdapter, type PushRegistration } from "@abea/shared";
+import { androidNotifications } from "./androidNotifications";
 
 const native = Capacitor.isNativePlatform();
 const os = Capacitor.getPlatform();
@@ -29,7 +30,12 @@ let foreground = true;
 if (native) {
   void CapApp.addListener("appStateChange", ({ isActive }) => {
     foreground = isActive;
+    window.dispatchEvent(new Event("abea:foreground"));
   });
+  void CapApp.getState().then(({ isActive }) => {
+    foreground = isActive;
+    window.dispatchEvent(new Event("abea:foreground"));
+  }).catch((error) => console.warn("Could not read app foreground state", error));
 }
 
 // ---- Permission ------------------------------------------------------------------------------
@@ -93,7 +99,7 @@ const notify: PlatformAdapter["notify"] = (title, body, onClick, options) => {
           group: "abea.messages",
           threadIdentifier: options?.roomId,
           summaryText: options?.isDirect ? undefined : options?.roomName,
-          extra: { roomId: options?.roomId },
+          extra: { roomId: options?.roomId, eventId: options?.eventId },
           autoCancel: true,
         },
       ],
@@ -101,15 +107,38 @@ const notify: PlatformAdapter["notify"] = (title, body, onClick, options) => {
   })().catch((e) => console.warn("Notification failed", e));
 };
 
-async function clearNotifications(roomId: string) {
+async function clearNotifications(roomId: string, eventId?: string) {
   const id = roomNotificationId(roomId);
-  await LocalNotifications.removeDeliveredNotifications({ notifications: [{ id, title: "", body: "" }] }).catch(() => undefined);
+  const local = await LocalNotifications.getDeliveredNotifications();
+  const matching = local.notifications.filter((notification) => notification.id === id &&
+    (!eventId || (notification.extra as { eventId?: string } | undefined)?.eventId === eventId));
+  if (matching.length) await LocalNotifications.removeDeliveredNotifications({ notifications: matching });
   if (PUSH_GATEWAY && os === "ios") {
     // APNs notifications carry the room in their payload instead of a predictable id.
-    const { notifications } = await PushNotifications.getDeliveredNotifications().catch(() => ({ notifications: [] }));
-    const forRoom = notifications.filter((n) => (n.data as { room_id?: string } | undefined)?.room_id === roomId);
-    if (forRoom.length) await PushNotifications.removeDeliveredNotifications({ notifications: forRoom }).catch(() => undefined);
+    const { notifications } = await PushNotifications.getDeliveredNotifications();
+    const forRoom = notifications.filter((n) => {
+      const data = n.data as { room_id?: string; event_id?: string } | undefined;
+      return data?.room_id === roomId && (!eventId || data.event_id === eventId);
+    });
+    if (forRoom.length) await PushNotifications.removeDeliveredNotifications({ notifications: forRoom });
   }
+}
+
+async function getDeliveredNotifications() {
+  const { notifications } = await LocalNotifications.getDeliveredNotifications();
+  const result: { roomId: string; eventId: string }[] = [];
+  for (const notification of notifications) {
+    const extra = notification.extra as { roomId?: string; eventId?: string } | undefined;
+    if (extra?.roomId && extra.eventId) result.push({ roomId: extra.roomId, eventId: extra.eventId });
+  }
+  if (PUSH_GATEWAY && os === "ios") {
+    const push = await PushNotifications.getDeliveredNotifications();
+    for (const notification of push.notifications) {
+      const data = notification.data as { room_id?: string; event_id?: string } | undefined;
+      if (data?.room_id && data.event_id) result.push({ roomId: data.room_id, eventId: data.event_id });
+    }
+  }
+  return result;
 }
 
 // ---- Remote push -----------------------------------------------------------------------------
@@ -169,10 +198,11 @@ function handleUrl(url: string | undefined) {
 
 export function setUpNotifications(): Pick<
   PlatformAdapter,
-  "notify" | "notificationPermission" | "clearNotifications" | "registerPush" | "isForeground"
+  "notify" | "notificationPermission" | "clearNotifications" | "getDeliveredNotifications" |
+  "onNotificationAction" | "setNotificationState" | "registerPush" | "isForeground"
 > {
   if (!native) return {};
-  void setUpLocalNotifications();
+  if (os !== "android") void setUpLocalNotifications().catch((error) => console.error("Could not set up notifications", error));
   if (PUSH_GATEWAY) setUpPush();
   void CapApp.addListener("appUrlOpen", ({ url }) => handleUrl(url));
   void CapApp.getLaunchUrl()
@@ -181,8 +211,10 @@ export function setUpNotifications(): Pick<
   return {
     notify,
     notificationPermission: permission,
-    clearNotifications: (roomId) => void clearNotifications(roomId),
+    clearNotifications,
+    getDeliveredNotifications,
     registerPush: PUSH_GATEWAY ? registerPush : undefined,
     isForeground: () => foreground,
+    ...(os === "android" ? androidNotifications() : {}),
   };
 }

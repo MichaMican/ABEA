@@ -26,7 +26,10 @@ export interface PlatformAdapter {
     openSettings?: () => void;
   };
   /** Removes notifications of a room that were already delivered (e.g. after it was read). */
-  clearNotifications?: (roomId: string) => void;
+  clearNotifications?: (roomId: string, eventId?: string) => void | Promise<void>;
+  getDeliveredNotifications?: () => Promise<DeliveredChatNotification[]>;
+  onNotificationAction?: (handler: (action: ChatNotificationAction) => Promise<void>) => () => void;
+  setNotificationState?: (state: { userId: string | null; enabled: boolean }) => Promise<void>;
   /**
    * Registers for remote push (FCM / APNs). Resolves with the pusher to register on the homeserver,
    * or null when push isn't configured for this build.
@@ -45,6 +48,22 @@ export interface NotifyOptions {
   /** Name of the conversation, used to group notifications. */
   roomName?: string;
   isDirect?: boolean;
+  eventId?: string;
+  senderId?: string;
+  senderName?: string;
+  timestamp?: number;
+}
+
+export interface DeliveredChatNotification {
+  roomId: string;
+  eventId: string;
+}
+
+export interface ChatNotificationAction extends DeliveredChatNotification {
+  id: string;
+  userId: string;
+  type: "read" | "reply";
+  reply?: string;
 }
 
 export type NotificationPermissionState = "granted" | "denied" | "prompt";

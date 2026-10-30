@@ -15,6 +15,8 @@ import { useToast } from "../../components/Toast";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { useIsCompact } from "../AppShell";
 import { getReadState, Message } from "./Message";
+import { usePlatform } from "../../platform";
+import { markRoomRead } from "../../matrix/notificationActions";
 
 type Item =
   | { kind: "day"; key: string; ts: number }
@@ -86,12 +88,14 @@ export function Timeline({
 }) {
   const client = useMatrixClient();
   const toast = useToast();
+  const platform = usePlatform();
   const compact = useIsCompact();
   const me = client.getUserId() ?? "";
   const { events, canPaginate, paginating, paginate, version } = useTimeline(room);
   const typing = useTypingMembers(room);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const markingRead = useRef<string | null>(null);
   const [showJump, setShowJump] = useState(false);
   const [menu, setMenu] = useState<{ ev: MatrixEvent; anchor: Anchor; picker?: boolean } | null>(null);
   const [lightbox, setLightbox] = useState<LightboxImage | null>(null);
@@ -133,24 +137,34 @@ export function Timeline({
   }, [lastKey, lastEvent, me]);
 
   // Send read receipts while the user is looking at the latest messages.
-  const [focused, setFocused] = useState(() => document.hasFocus());
+  const [focused, setFocused] = useState(() => platform.isForeground?.() ?? (document.hasFocus() && !document.hidden));
   useEffect(() => {
-    const on = () => setFocused(true);
+    const on = () => setFocused(platform.isForeground?.() ?? (document.hasFocus() && !document.hidden));
     const off = () => setFocused(false);
     window.addEventListener("focus", on);
     window.addEventListener("blur", off);
+    window.addEventListener("abea:foreground", on);
+    document.addEventListener("visibilitychange", on);
     return () => {
       window.removeEventListener("focus", on);
       window.removeEventListener("blur", off);
+      window.removeEventListener("abea:foreground", on);
+      document.removeEventListener("visibilitychange", on);
     };
-  }, []);
+  }, [platform]);
   useEffect(() => {
     if (!focused || showJump) return;
     const live = room.getLiveTimeline().getEvents();
     const target = [...live].reverse().find((e) => e.getId() && !e.getId()!.startsWith("~") && !e.isState());
-    if (!target || room.hasUserReadEvent(me, target.getId()!)) return;
-    client.sendReadReceipt(target).catch(() => undefined);
-  }, [client, room, me, focused, showJump, version]);
+    if (!target || room.hasUserReadEvent(me, target.getId()!) || markingRead.current === target.getId()) return;
+    const eventId = target.getId()!;
+    markingRead.current = eventId;
+    markRoomRead(client, room.roomId, eventId)
+      .catch((error) => toast.error(error, "Could not mark messages as read."))
+      .finally(() => {
+        if (markingRead.current === eventId) markingRead.current = null;
+      });
+  }, [client, room, me, focused, showJump, version, toast]);
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current;

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ClientEvent, HttpApiEvent, SyncState, type MatrixClient } from "matrix-js-sdk";
-import { PlatformContext, defaultPlatform, type PlatformAdapter } from "./platform";
+import { PlatformContext, defaultPlatform, usePlatform, type PlatformAdapter } from "./platform";
 import { ThemeProvider } from "./theme/ThemeProvider";
 import { ToastProvider } from "./components/Toast";
 import { MatrixContext } from "./matrix/MatrixContext";
@@ -41,9 +41,16 @@ type GateState =
   | { status: "ready"; client: MatrixClient; cryptoEnabled: boolean };
 
 function SessionGate() {
+  const platform = usePlatform();
   const [state, setState] = useState<GateState>({ status: "loading" });
   const clientRef = useRef<MatrixClient | null>(null);
   const bootedRef = useRef(false);
+
+  useEffect(() => {
+    if (state.status !== "login") return;
+    platform.setNotificationState?.({ userId: null, enabled: false })
+      .catch((error) => console.error("Could not clear notifications after sign-out", error));
+  }, [state.status, platform]);
 
   const start = useCallback(async (session: StoredSession) => {
     setState({ status: "loading", message: "Connecting to your homeserver…" });

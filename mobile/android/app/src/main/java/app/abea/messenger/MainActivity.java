@@ -13,8 +13,9 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(ChatNotificationsPlugin.class);
         super.onCreate(savedInstanceState);
-        AbeaMessagingService.ensureChannel(this);
+        ChatNotifications.ensureChannel(this);
     }
 
     @Override

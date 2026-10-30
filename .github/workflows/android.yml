@@ -70,6 +70,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Test notification read and reply handling
+        run: npm test -w @abea/shared
+
       - name: Stamp mobile version
         working-directory: mobile
         run: npm run version:set
@@ -90,9 +93,9 @@ jobs:
           npm run build
           npx cap sync android
 
-      - name: Build debug APK
+      - name: Test Android notifications and build debug APK
         working-directory: mobile/android
-        run: ./gradlew --no-daemon assembleDebug
+        run: ./gradlew --no-daemon testDebugUnitTest assembleDebug
 
       - name: Decode release keystore
         if: env.HAS_KEYSTORE == 'true'
