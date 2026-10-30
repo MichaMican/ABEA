@@ -1,0 +1,549 @@
+/* ---------------------------------------------------------------------------------------------
+ * Device verification & encryption
+ * -------------------------------------------------------------------------------------------*/
+
+.verify-modal .modal__body {
+  padding-top: 4px;
+}
+
+.verify-modal .modal__footer > .btn {
+  flex: 1;
+}
+
+.verify-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 4px 8px;
+  text-align: center;
+}
+
+.verify-status h3 {
+  margin: 6px 0 0;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.verify-status p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 14.5px;
+  line-height: 1.5;
+  max-width: 340px;
+}
+
+.verify-status .form-error {
+  margin-top: 8px;
+  align-self: stretch;
+}
+
+.verify-status__icon,
+.verify-hero {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 26px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  animation: verify-pop 420ms var(--ease-spring);
+}
+
+.verify-status--success .verify-status__icon {
+  background: var(--success-soft);
+  color: var(--success);
+  box-shadow: 0 0 0 10px color-mix(in srgb, var(--success) 7%, transparent);
+}
+
+.verify-status--danger .verify-status__icon {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.verify-status--muted .verify-status__icon {
+  background: var(--surface-3);
+  color: var(--text-3);
+}
+
+@keyframes verify-pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.verify-incoming {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 4px 4px;
+  text-align: center;
+}
+
+.verify-incoming h3 {
+  margin: 8px 0 0;
+  font-size: 19px;
+}
+
+.verify-incoming p {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+/* Emoji comparison */
+.verify-sas {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-top: 6px;
+}
+
+.verify-sas > p {
+  margin: 0;
+  text-align: center;
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+.sas-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.sas-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: calc((100% - 30px) / 4);
+  padding: 14px 4px 10px;
+  border-radius: 18px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  animation: verify-pop 380ms var(--ease-spring) both;
+}
+
+.sas-tile__emoji {
+  font-size: 34px;
+  line-height: 1.1;
+}
+
+.sas-tile__label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-2);
+  text-align: center;
+}
+
+.verify-sas__waiting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-2);
+  font-size: 14px;
+}
+
+/* Choosing how to verify */
+.verify-choose {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 4px;
+}
+
+.verify-choose .verify-status {
+  padding-bottom: 12px;
+}
+
+.verify-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--dur) var(--ease),
+    border-color var(--dur) var(--ease),
+    transform var(--dur) var(--ease);
+}
+
+.verify-option > svg {
+  flex: none;
+  color: var(--accent-text);
+}
+
+.verify-option span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.verify-option strong {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.verify-option small {
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.verify-option:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+
+.verify-option:active {
+  transform: scale(0.99);
+}
+
+.verify-reset {
+  margin-top: 6px;
+  padding: 8px;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.verify-reset:hover {
+  color: var(--danger);
+}
+
+.verify-key-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 4px;
+}
+
+.verify-key-form p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.verify-key-form .field__input {
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+
+.verify-key-form .field__input[type="password"] {
+  font-family: inherit;
+}
+
+/* Recovery key display */
+.recovery-key {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 6px 0 4px;
+}
+
+.recovery-key p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.recovery-key__value {
+  display: block;
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--accent-soft);
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.7;
+  letter-spacing: 0.04em;
+  text-align: center;
+  word-spacing: 0.25em;
+  user-select: all;
+}
+
+.recovery-key__actions {
+  display: flex;
+  gap: 10px;
+}
+
+.recovery-key__actions .btn {
+  flex: 1;
+}
+
+/* Banner above the chat list */
+.security-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 12px 10px;
+  padding: 12px 10px 12px 14px;
+  border-radius: 18px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  animation: pop-in 260ms var(--ease);
+}
+
+.security-banner--warning {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: color-mix(in srgb, var(--warning) 75%, var(--text));
+}
+
+.security-banner > svg {
+  flex: none;
+}
+
+.security-banner__text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+}
+
+.security-banner__text strong {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.security-banner__text span {
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+.security-banner__close {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.security-banner__close:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+/* Trust shields */
+.trust {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.trust--verified {
+  color: var(--success);
+}
+
+.trust--warning {
+  color: var(--warning);
+}
+
+.pill.trust--verified {
+  background: var(--success-soft);
+}
+
+.pill.trust--warning {
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+}
+
+.pill--muted {
+  background: var(--surface-3);
+  color: var(--text-3);
+}
+
+/* Settings: security summary */
+.security-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.security-hero__icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+}
+
+.security-hero.is-verified .security-hero__icon {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.security-hero.is-unverified .security-hero__icon {
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
+}
+
+.security-hero__text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.security-hero__text strong {
+  font-size: 15.5px;
+}
+
+.security-hero__text span {
+  color: var(--text-2);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+/* Settings: devices */
+.device-list__loading {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.device-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+}
+
+.device-row + .device-row {
+  border-top: 1px solid var(--border);
+}
+
+.device-row__icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+
+.device-row__icon.is-verified {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.device-row__icon.is-unverified {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+}
+
+.device-row__check {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--success);
+}
+
+.device-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.device-row__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-row__name .pill {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.device-row__text small {
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.device-row__text code {
+  font-size: 11.5px;
+}
+
+.device-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+/* Profile: verification row */
+.profile-trust {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.profile-trust > svg {
+  flex: none;
+}
+
+.profile-trust__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-trust__text strong {
+  font-size: 15px;
+}
+
+.profile-trust__text small {
+  color: var(--text-3);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.room-header__shield {
+  color: var(--success);
+  flex: none;
+}
