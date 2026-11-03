@@ -110,12 +110,15 @@ To get a signed release APK too (needed for updates without uninstalling), add t
 
 Create the keystore **once**, on a machine you trust, and keep an encrypted backup of it together with its
 password: losing it means no future build can ever update an already installed ABEA, and leaking it lets
-anyone publish an update that Android accepts as genuine.
+anyone publish an update that Android accepts as genuine. Use `-storetype PKCS12` (the industry standard);
+Gradle detects the format from the file, so the `.jks` extension and the workflow stay unchanged. A keystore
+you already created as JKS also works — `keytool` only prints a migration warning — but PKCS12 avoids it.
+In PKCS12 the key password must equal the store password, so press Enter at the key password prompt.
 
 **Linux/macOS**
 
 ```bash
-keytool -genkeypair -v -keystore release.jks -storetype JKS -alias abea \
+keytool -genkeypair -v -keystore release.jks -storetype PKCS12 -alias abea \
   -keyalg RSA -keysize 4096 -validity 10000
 chmod 600 release.jks
 
@@ -138,7 +141,7 @@ $env:Path += ';C:\Program Files\Android\Android Studio\jbr\bin'
 #    manager) when prompted, and press Enter at the key password prompt to reuse it.
 New-Item -ItemType Directory -Force "$env:USERPROFILE\abea-signing" | Out-Null
 Set-Location "$env:USERPROFILE\abea-signing"
-keytool -genkeypair -v -keystore release.jks -storetype JKS -alias abea `
+keytool -genkeypair -v -keystore release.jks -storetype PKCS12 -alias abea `
   -keyalg RSA -keysize 4096 -validity 10000
 
 # 3. Lock the file down to your account only (the chmod 600 equivalent)
