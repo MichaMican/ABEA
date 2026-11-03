@@ -180,16 +180,22 @@ export function SettingsView() {
           </div>
         </section>
 
-        <h2 className="settings__section">About</h2>
-        <section className="settings-card settings-list">
+        <h2 id="settings-about" className="settings__section">About ABEA</h2>
+        <section className="settings-card settings-list" aria-labelledby="settings-about">
           <div className="settings-row">
             <Info size={20} className="muted" />
             <div className="settings-row__text">
-              <span>ABEA {__ABEA_VERSION__}</span>
+              <span>ABEA</span>
               <small>
                 {platform.kind === "desktop" ? "Desktop" : platform.kind === "mobile" ? "Mobile" : "Web"} app · Built on the open Matrix
                 protocol
               </small>
+            </div>
+          </div>
+          <div className="settings-row">
+            <div className="settings-row__text">
+              <span>App version</span>
+              <small style={{ overflowWrap: "anywhere", userSelect: "text" }}>{__ABEA_VERSION__}</small>
             </div>
           </div>
         </section>

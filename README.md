@@ -25,6 +25,8 @@ All three apps render the same React UI from `shared/`. Each one injects a small
 
 ## Getting started
 
+Find the installed app's version under **Settings → About ABEA → App version** on mobile, desktop and web. The full version includes the `-internal.N` suffix for internal builds.
+
 Requirements: Node.js 22+ and npm 10+.
 
 ```bash
