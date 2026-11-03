@@ -1,0 +1,13 @@
+node_modules/
+dist/
+dist-electron/
+release/
+*.log
+.DS_Store
+.vite/
+mobile/android/app/build/
+mobile/android/.gradle/
+mobile/android/build/
+mobile/ios/App/Pods/
+mobile/ios/App/build/
+mobile/ios/DerivedData/
