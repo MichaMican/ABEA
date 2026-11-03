@@ -10,6 +10,7 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.service.notification.StatusBarNotification;
 import android.util.Log;
 import androidx.core.app.NotificationCompat;
@@ -146,6 +147,19 @@ final class ChatNotifications {
     static Intent openIntent(Context context, String roomId) {
         return new Intent(Intent.ACTION_VIEW, Uri.parse("abea://room/" + Uri.encode(roomId)), context, MainActivity.class)
             .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+    }
+
+    /** ABEA's notification settings page (app info on Android 7, which has no dedicated page). */
+    static Intent settingsIntent(Context context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            return new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, context.getPackageName());
+        }
+        return appDetailsIntent(context);
+    }
+
+    static Intent appDetailsIntent(Context context) {
+        return new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.getPackageName(), null));
     }
 
     private static PendingIntent actionIntent(

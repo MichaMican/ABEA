@@ -10,6 +10,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.os.Bundle;
+import android.provider.Settings;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.RemoteInput;
 import com.google.firebase.messaging.RemoteMessage;
@@ -68,6 +69,16 @@ public class ChatNotificationsTest {
         assertEquals(0, shadowOf(notification.actions[1].actionIntent).getFlags() & PendingIntent.FLAG_IMMUTABLE);
         assertNotEquals(0, shadowOf(notification.actions[0].actionIntent).getFlags() & PendingIntent.FLAG_IMMUTABLE);
         assertEquals(0, notification.flags & Notification.FLAG_AUTO_CANCEL);
+    }
+
+    @Test
+    public void settingsIntentOpensThisAppsNotificationSettings() {
+        Intent intent = ChatNotifications.settingsIntent(context);
+        assertEquals(Settings.ACTION_APP_NOTIFICATION_SETTINGS, intent.getAction());
+        assertEquals(context.getPackageName(), intent.getStringExtra(Settings.EXTRA_APP_PACKAGE));
+        Intent fallback = ChatNotifications.appDetailsIntent(context);
+        assertEquals(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, fallback.getAction());
+        assertEquals("package:" + context.getPackageName(), fallback.getDataString());
     }
 
     @Test

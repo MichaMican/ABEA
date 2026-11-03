@@ -3,7 +3,7 @@ import { App as CapApp } from "@capacitor/app";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { navigate, roomNotificationId, type NotificationPermissionState, type PlatformAdapter, type PushRegistration } from "@abea/shared";
-import { androidNotifications } from "./androidNotifications";
+import { androidNotifications, openAndroidNotificationSettings } from "./androidNotifications";
 
 const native = Capacitor.isNativePlatform();
 const os = Capacitor.getPlatform();
@@ -51,7 +51,14 @@ const permission = {
   request: async () => {
     const status = await LocalNotifications.checkPermissions();
     if (status.display === "granted" || status.display === "denied") return mapPermission(status.display);
-    return mapPermission((await LocalNotifications.requestPermissions()).display);
+    const result = mapPermission((await LocalNotifications.requestPermissions()).display);
+    // Android answers "denied" after any refusal; checking tells whether the dialog may be shown again.
+    return result === "granted" ? result : permission.check();
+  },
+  openSettings: () => {
+    if (os === "android") void openAndroidNotificationSettings().catch((error) => console.error("Could not open settings", error));
+    // UIApplication.openSettingsURLString; Capacitor hands non-app URLs to the system.
+    else if (os === "ios") window.location.href = "app-settings:";
   },
 };
 
@@ -158,10 +165,8 @@ function obtainPushToken(): Promise<string> {
 }
 
 async function registerPush(): Promise<PushRegistration | null> {
-  let status = await PushNotifications.checkPermissions();
-  if (status.receive === "prompt" || status.receive === "prompt-with-rationale") {
-    status = await PushNotifications.requestPermissions();
-  }
+  // The permission is requested by the shared UI (first launch / banner / settings), never twice at once.
+  const status = await PushNotifications.checkPermissions();
   if (status.receive !== "granted") return null;
   const pushkey = await obtainPushToken();
   return {

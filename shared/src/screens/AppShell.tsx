@@ -17,7 +17,7 @@ import { Welcome } from "./Welcome";
 import { classifyEvent, messagePreview, senderName } from "../matrix/events";
 import { getDmPartner } from "../matrix/rooms";
 import { EmptyState } from "../components/ui";
-import { notificationsEnabled, syncPusher, useNotificationsEnabled } from "../matrix/notifications";
+import { notificationsEnabled, promptForNotificationPermissionOnce, syncPusher, useNotificationPermission, useNotificationsEnabled } from "../matrix/notifications";
 import { notificationWasRead, performNotificationAction } from "../matrix/notificationActions";
 import { useToast } from "../components/Toast";
 
@@ -229,14 +229,21 @@ function useNotifications(route: Route) {
   routeRef.current = route;
   const unread = useUnreadTotal();
   const enabled = useNotificationsEnabled();
+  const granted = useNotificationPermission(platform).permission === "granted";
   const toast = useToast();
   const isForeground = () => (platform.isForeground ? platform.isForeground() : document.hasFocus() && !document.hidden);
 
+  // First launch: ask for the permission right away instead of waiting for the settings switch.
+  useEffect(() => {
+    void promptForNotificationPermissionOnce(platform);
+  }, [platform]);
+
   // Register / remove the homeserver pusher so notifications also arrive while the app is closed.
+  // Re-run once the permission is granted, since push registration needs it.
   useEffect(() => {
     if (!platform.registerPush && !enabled) return;
     syncPusher(client, platform, enabled).catch((e) => console.warn("Push registration failed", e));
-  }, [client, platform, enabled]);
+  }, [client, platform, enabled, granted]);
 
   useEffect(() => {
     platform.setNotificationState?.({ userId: client.getUserId(), enabled }).catch((error) => toast.error(error));

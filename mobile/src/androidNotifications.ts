@@ -10,9 +10,13 @@ interface ChatNotificationsPlugin {
   complete(options: { id: string }): Promise<void>;
   status(options: { id: string; text: string }): Promise<void>;
   addListener(event: "actionsChanged", handler: () => void): Promise<PluginListenerHandle>;
+  openSettings(): Promise<void>;
 }
 
 const ChatNotifications = registerPlugin<ChatNotificationsPlugin>("ChatNotifications");
+
+/** Opens ABEA's notification settings, the only way back once the permission was denied for good. */
+export const openAndroidNotificationSettings = () => ChatNotifications.openSettings();
 let actionHandler: ((action: ChatNotificationAction) => Promise<void>) | undefined;
 let draining = false;
 let dirty = false;

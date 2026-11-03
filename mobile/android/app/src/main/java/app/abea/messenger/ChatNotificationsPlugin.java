@@ -1,6 +1,7 @@
 package app.abea.messenger;
 
 import android.app.Notification;
+import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -107,6 +108,22 @@ public class ChatNotificationsPlugin extends Plugin {
             call.resolve();
         } catch (JSONException | IllegalStateException error) {
             call.reject("Could not acknowledge notification action", error);
+        }
+    }
+
+    @PluginMethod
+    public void openSettings(PluginCall call) {
+        try {
+            getActivity().startActivity(ChatNotifications.settingsIntent(getContext()));
+            call.resolve();
+        } catch (ActivityNotFoundException missing) {
+            // Some vendor ROMs drop the notification settings screen; app info links to it as well.
+            try {
+                getActivity().startActivity(ChatNotifications.appDetailsIntent(getContext()));
+                call.resolve();
+            } catch (ActivityNotFoundException error) {
+                call.reject("Could not open the notification settings", error);
+            }
         }
     }
 

@@ -8,6 +8,7 @@ import { navigate } from "../router";
 import { Avatar } from "../components/Avatar";
 import { Button, EmptyState, IconButton, SearchField } from "../components/ui";
 import { SecurityBanner } from "../components/Security";
+import { NotificationBanner } from "../components/NotificationBanner";
 import { useToast } from "../components/Toast";
 import { formatListTime } from "../lib/format";
 import { NewChatDialog } from "./NewChatDialog";
@@ -74,6 +75,7 @@ export function ChatList({ activeRoomId }: { activeRoomId?: string }) {
         ))}
       </div>
       <SecurityBanner />
+      <NotificationBanner />
       {offline && (
         <div className="sync-banner">
           <WifiOff size={16} /> Connection lost — reconnecting…

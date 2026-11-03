@@ -30,50 +30,101 @@ function webPermission(): NotificationPermissionState {
   return Notification.permission === "default" ? "prompt" : Notification.permission;
 }
 
+/* -------------------------------------------------------------------------------------------------
+ * Permission: one shared state, so the settings switch, the chat list banner and the first-launch
+ * prompt never disagree.
+ * -----------------------------------------------------------------------------------------------*/
+
+export const PERMISSION_PROMPTED_KEY = "abea.notificationPermissionPrompted";
+
+let permissionState: NotificationPermissionState | null = null;
+let permissionVersion = 0;
+let pendingRequest: Promise<NotificationPermissionState> | null = null;
+const permissionListeners = new Set<(state: NotificationPermissionState) => void>();
+
+function publishPermission(state: NotificationPermissionState): void {
+  permissionState = state;
+  for (const listener of permissionListeners) listener(state);
+}
+
+export function subscribeNotificationPermission(listener: (state: NotificationPermissionState) => void): () => void {
+  permissionListeners.add(listener);
+  return () => void permissionListeners.delete(listener);
+}
+
+function initialPermission(platform: PlatformAdapter): NotificationPermissionState | null {
+  if (platform.notificationPermission) return permissionState;
+  return platform.notify ? "granted" : webPermission();
+}
+
+export async function checkNotificationPermission(platform: PlatformAdapter): Promise<NotificationPermissionState> {
+  const version = permissionVersion;
+  const native = platform.notificationPermission;
+  const state = native ? await native.check().catch(() => "denied" as const) : (initialPermission(platform) ?? "denied");
+  // A check that started before a permission dialog was answered must not overwrite its result.
+  if (version === permissionVersion && !pendingRequest) publishPermission(state);
+  return state;
+}
+
+/** Shows the system permission dialog; concurrent callers share a single dialog. */
+export function requestNotificationPermission(platform: PlatformAdapter): Promise<NotificationPermissionState> {
+  pendingRequest ??= (async () => {
+    const native = platform.notificationPermission;
+    let result: NotificationPermissionState;
+    if (native) result = await native.request().catch(() => "denied" as const);
+    else if (platform.notify) result = "granted";
+    else if ("Notification" in window) {
+      // Called synchronously from the click so browsers see the user gesture.
+      const p = await Notification.requestPermission().catch(() => Notification.permission);
+      result = p === "default" ? "prompt" : p;
+    } else result = "denied";
+    permissionVersion++;
+    publishPermission(result);
+    return result;
+  })().finally(() => {
+    pendingRequest = null;
+  });
+  return pendingRequest;
+}
+
+/**
+ * Asks for the notification permission once per install, on native apps only: browsers ignore
+ * permission requests that aren't triggered by a click, so the web app relies on the banner.
+ */
+export async function promptForNotificationPermissionOnce(platform: PlatformAdapter): Promise<NotificationPermissionState | null> {
+  if (!platform.notificationPermission || !notificationsEnabled() || localStorage.getItem(PERMISSION_PROMPTED_KEY)) return null;
+  localStorage.setItem(PERMISSION_PROMPTED_KEY, "1");
+  const state = await checkNotificationPermission(platform);
+  return state === "prompt" ? requestNotificationPermission(platform) : state;
+}
+
 /**
  * Current OS / browser permission to show notifications. Re-checked when the app comes back to the
- * foreground, since users may change it in the system settings meanwhile.
+ * foreground, since users may change it in the system settings meanwhile. `null` while unknown.
  */
 export function useNotificationPermission(platform: PlatformAdapter): {
   permission: NotificationPermissionState | null;
   request: () => Promise<NotificationPermissionState>;
 } {
-  const native = platform.notificationPermission;
-  const [permission, setPermission] = useState<NotificationPermissionState | null>(() =>
-    native ? null : platform.notify ? "granted" : webPermission(),
-  );
+  const [permission, setPermission] = useState(() => initialPermission(platform));
 
   useEffect(() => {
-    if (!native) return;
-    let alive = true;
-    const check = () =>
-      void native
-        .check()
-        .then((p) => alive && setPermission(p))
-        .catch(() => alive && setPermission("denied"));
-    check();
+    const unsubscribe = subscribeNotificationPermission(setPermission);
+    const check = () => void checkNotificationPermission(platform);
     const onVisible = () => !document.hidden && check();
+    check();
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", check);
+    window.addEventListener("abea:foreground", check);
     return () => {
-      alive = false;
+      unsubscribe();
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", check);
+      window.removeEventListener("abea:foreground", check);
     };
-  }, [native]);
+  }, [platform]);
 
-  const request = useCallback(async () => {
-    let result: NotificationPermissionState;
-    if (native) result = await native.request().catch(() => "denied" as const);
-    else if (platform.notify) result = "granted";
-    else if ("Notification" in window) {
-      const p = await Notification.requestPermission();
-      result = p === "default" ? "prompt" : p;
-    } else result = "denied";
-    setPermission(result);
-    return result;
-  }, [native, platform.notify]);
-
+  const request = useCallback(() => requestNotificationPermission(platform), [platform]);
   return { permission, request };
 }
 
