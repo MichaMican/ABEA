@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: android-${{ github.event.pull_request.number || github.ref }}
@@ -135,3 +136,28 @@ jobs:
           is_prerelease: ${{ env.IS_MAIN != 'true' }}
           prerelease_name: internal
           asset_path: ${{ runner.temp }}/apk
+
+      # Keeps a single, always up-to-date comment on the PR pointing at the latest APKs.
+      - name: Comment APK links on the pull request
+        if: github.event_name == 'pull_request' && env.CAN_RELEASE == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RELEASE_URL: ${{ github.server_url }}/${{ github.repository }}/releases/download/v${{ env.ABEA_VERSION_NAME }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo "<!-- abea-apk -->"
+            echo "### 📦 ABEA \`$ABEA_VERSION_NAME\` (build $ABEA_VERSION_CODE)"
+            echo
+            if [ "$HAS_KEYSTORE" = "true" ]; then
+              echo "- **[Download APK]($RELEASE_URL/ABEA-$ABEA_VERSION_NAME.apk)** — signed, updates in place"
+            else
+              echo "- ⚠️ No signing keystore configured, so only a debug APK is available."
+              echo "  Debug builds are signed with a throwaway key and cannot update an existing install."
+            fi
+            echo "- [Debug APK]($RELEASE_URL/ABEA-$ABEA_VERSION_NAME-debug.apk)"
+            echo
+            echo "<sub>From commit ${GITHUB_SHA:0:7} · [workflow run]($RUN_URL)</sub>"
+          } > "$RUNNER_TEMP/comment.md"
+          gh pr comment "$PR_NUMBER" --body-file "$RUNNER_TEMP/comment.md" --edit-last --create-if-none
