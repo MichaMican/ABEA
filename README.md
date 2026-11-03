@@ -103,12 +103,62 @@ To get a signed release APK too (needed for updates without uninstalling), add t
 
 | Secret | Value |
 | --- | --- |
-| `ANDROID_KEYSTORE_BASE64` | `base64 -w0 release.jks` |
+| `ANDROID_KEYSTORE_BASE64` | the keystore file, base64 encoded |
 | `ANDROID_KEYSTORE_PASSWORD` | keystore password |
 | `ANDROID_KEY_ALIAS` | key alias |
 | `ANDROID_KEY_PASSWORD` | key password |
 
-Create a keystore once with `keytool -genkeypair -v -keystore release.jks -alias abea -keyalg RSA -keysize 4096 -validity 10000`.
+Create the keystore **once**, on a machine you trust, and keep an encrypted backup of it together with its
+password: losing it means no future build can ever update an already installed ABEA, and leaking it lets
+anyone publish an update that Android accepts as genuine.
+
+**Linux/macOS**
+
+```bash
+keytool -genkeypair -v -keystore release.jks -storetype JKS -alias abea \
+  -keyalg RSA -keysize 4096 -validity 10000
+chmod 600 release.jks
+
+base64 -w0 release.jks | gh secret set ANDROID_KEYSTORE_BASE64 --repo MichaMican/ABEA
+gh secret set ANDROID_KEYSTORE_PASSWORD --repo MichaMican/ABEA   # prompts, nothing lands in shell history
+gh secret set ANDROID_KEY_PASSWORD --repo MichaMican/ABEA
+gh secret set ANDROID_KEY_ALIAS --repo MichaMican/ABEA --body abea
+```
+
+**Windows (PowerShell)**
+
+`keytool` ships with every JDK; Android Studio bundles one at
+`C:\Program Files\Android\Android Studio\jbr\bin`.
+
+```powershell
+# 1. Make keytool available (skip if `keytool -help` already works)
+$env:Path += ';C:\Program Files\Android\Android Studio\jbr\bin'
+
+# 2. Generate the keystore. Type a long random password (24+ chars, from a password
+#    manager) when prompted, and press Enter at the key password prompt to reuse it.
+New-Item -ItemType Directory -Force "$env:USERPROFILE\abea-signing" | Out-Null
+Set-Location "$env:USERPROFILE\abea-signing"
+keytool -genkeypair -v -keystore release.jks -storetype JKS -alias abea `
+  -keyalg RSA -keysize 4096 -validity 10000
+
+# 3. Lock the file down to your account only (the chmod 600 equivalent)
+icacls release.jks /inheritance:r /grant:r "$env:USERDOMAIN\$($env:USERNAME):(R,W)"
+
+# 4. Upload the secrets (gh trims the trailing newline, so the pipe is safe)
+$b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("$PWD\release.jks"))
+$b64 | gh secret set ANDROID_KEYSTORE_BASE64 --repo MichaMican/ABEA
+gh secret set ANDROID_KEYSTORE_PASSWORD --repo MichaMican/ABEA   # prompts, nothing lands in PSReadLine history
+gh secret set ANDROID_KEY_PASSWORD --repo MichaMican/ABEA
+gh secret set ANDROID_KEY_ALIAS --repo MichaMican/ABEA --body abea
+
+# 5. Clear the base64 blob out of the session
+Remove-Variable b64
+```
+
+Do not pass passwords via `-storepass`/`-keypass` or `--body`: PowerShell records command lines in
+`$env:APPDATA\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt`. After the secrets exist,
+install the APK **without** `-debug` in its name; the switch from the throwaway debug key to the release key
+needs one final uninstall/reinstall, after which in-place updates work.
 
 To enable remote push in CI builds, add the secret `GOOGLE_SERVICES_JSON` (the file's contents) and the secret or variable `PUSH_GATEWAY_URL`.
 
